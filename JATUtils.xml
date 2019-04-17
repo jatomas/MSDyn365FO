@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AxClass xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+	<Name>JATUtils</Name>
+	<SourceCode>
+		<Declaration><![CDATA[
+using Microsoft.Dynamics.AX.Framework.Reporting.Shared.ReportingService;
+using PdfSharp.Pdf;
+using PdfSharp.Pdf.IO;
+using System.IO;
+class JATUtils
+{
+}
+]]></Declaration>
+		<Methods>
+			<Method>
+				<Name>getErrorInfolog</Name>
+				<Source><![CDATA[
+     public static str getErrorInfolog()
+    {
+        container   infologCon, infoline;
+        Exception   exception;
+        int         i;
+        str         message;
+        ClassName   actionClassName;
+        container   actionClassOptions;
+        FreeTxt     errorMsg;
+ 
+        // Get the infolog data and clear the messages (cut)
+        infologCon = infolog.cut();
+ 
+        for (i = 1; i <= conLen(infologCon); i++)
+        {
+            infoline = conPeek(infologCon, i);
+ 
+            exception = conPeek(infoline, 1);
+            message = conPeek(infoline, 2);
+            if(conLen(infoline) > 3 && conPeek(infoline, 4))
+            {
+                actionClassName    = classId2Name(conPeek(infoline, 4));
+                actionClassOptions = conPeek(infoline, 5);
+            }
+ 
+            errorMsg += strFmt("%1\n", subStr(message, strScan(message, '\t', strLen(message), -strLen(message)) + 1, strLen(message)));
+        }
+ 
+        return errorMsg;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getPDFReportStream</Name>
+				<Source><![CDATA[
+    public static System.IO.MemoryStream getPDFReportStream(SRSCatalogItemName _reportName, Object _dataContract)
+    {
+
+        SRSPrintDestinationSettings         settings;
+        System.Byte[]                       reportBytes             = new System.Byte[0]();
+        SrsReportRunController              controller              = new SrsReportRunController();
+        SRSReportExecutionInfo              executionInfo           = new SRSReportExecutionInfo();
+        SRSPrintArchiveContract		        SRSPrintArchiveContract = new SRSPrintArchiveContract(SRSReportFileFormat::PDF);
+        MemoryStream                        mstream;
+        Stream								blobReadStream;
+        PrintJobHeader						printJobHeader;
+        DocuRef								docuRef;
+		DocuValue							docuValue;
+
+        controller.parmReportName(_reportName);
+        controller.parmShowDialog(false);
+        controller.parmLoadFromSysLastValue(false);
+        controller.parmReportContract().parmRDPContract(_dataContract);
+        controller.parmReportContract().parmReportExecutionInfo(executionInfo);
+                
+        settings                = controller.parmReportContract().parmPrintSettings();
+        settings.overridePrintContractSettings(true);
+        settings.printMediumType(SRSPrintMediumType::Archive);
+        settings.parmOverwriteFileIsSet(true);
+        settings.fileFormat(SRSReportFileFormat::PDF);
+
+
+        settings.parmSRSPrintArchiveContract(SRSPrintArchiveContract);
+        str archiveName = strFmt('%1-%2', curUserId(), timeNow());
+
+        controller.parmReportContract().parmReportCaption(archiveName);
+
+        controller.parmReportContract().parmPrintSettings(settings);
+
+        controller.run();
+
+
+        select firstonly forupdate printJobHeader 
+			where printJobHeader.jobDescription == archiveName;
+
+
+        select firstonly forupdate docuRef 
+			where docuRef.RefRecId		== PrintJobHeader.RecId
+			   && docuRef.RefTableId	== printJobHeader.TableId;
+		
+        select firstonly forupdate docuValue 
+			where docuValue.RecId == docuRef.ValueRecId;
+
+        blobReadStream	= DocumentManagement::getAttachmentStream(docuRef);
+
+        mstream			= new MemoryStream();
+
+        blobReadStream.CopyTo(mstream);
+
+		       
+
+        ttsbegin;
+        printJobHeader.delete();
+        docuRef.delete();
+        docuValue.delete();
+        ttscommit;
+
+
+        return mstream;
+
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>mergePDFDocumentStreams</Name>
+				<Source><![CDATA[
+    public static System.IO.Stream mergePDFDocumentStreams(container _conStreams)
+    {
+        if (conLen(_conStreams) < 1)
+        {
+            throw Exception::Error;
+        }
+
+        PdfDocument         outputPDFDocument = new PdfDocument();
+        Stream              outputStream      = new MemoryStream();
+        
+
+        for (int i = 1; i <= conLen(_conStreams); i++)
+        {           
+            PdfPages            pdfPages;
+            int                 pageCount;
+            PdfDocument         inputPDFDocument;
+            Stream              inputStream         = conPeek(_conStreams,i);
+            
+
+            inputPDFDocument    = PdfReader::Open(inputStream, PdfDocumentOpenMode::Import);
+            pdfPages            = inputPDFDocument.get_Pages();
+            pageCount           = inputPDFDocument.get_PageCount();
+
+            if (pageCount > 0)
+            {
+                for (int j = 0 ; j < pageCount; j++)
+
+                {
+                    outputPDFDocument.AddPage(pdfPages.get_Item(j));
+                }
+            }
+        }
+
+        outputPDFDocument.Save(outputStream, false);
+           
+        return outputStream;
+    }
+
+]]></Source>
+			</Method>
+		</Methods>
+	</SourceCode>
+</AxClass>
