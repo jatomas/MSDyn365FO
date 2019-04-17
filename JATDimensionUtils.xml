@@ -1,0 +1,346 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<AxClass xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+	<Name>JATDimensionUtils</Name>
+	<SourceCode>
+		<Declaration><![CDATA[
+class JATDimensionUtils
+{
+    // Dimension names
+    public static const DimensionRefFieldName CostCenterName	= "CentroCoste";
+    public static const DimensionRefFieldName BusinessUnitName	= "UnidadNegocio";
+    public static const DimensionRefFieldName DepartmentName	= "Departamento";
+    public static const DimensionRefFieldName ProjectName		= "Proyecto";
+    public static const DimensionRefFieldName CustomerName		= "Cliente";
+    public static const DimensionRefFieldName VendorName		= "Proveedor";
+    public static const DimensionRefFieldName WorkerName		= "Trabajador";
+    public static const DimensionRefFieldName CustomDimName		= "Personalizada";
+
+
+}
+]]></Declaration>
+		<Methods>
+			<Method>
+				<Name>getDimensionAttributeValueSetId</Name>
+				<Source><![CDATA[
+    // Obtener DefaultDimension desde el Container [NumeroDimensiones, NombreDim1, Dimension1, NombreDim2, Dimension2]
+    public static RecId getDimensionAttributeValueSetId(container _dimensionValue, dataAreaId _dataAreaId = curext())
+    {
+        RecId                               dimensionId;
+        DimensionAttributeValueSetStorage   storage;
+        DimensionAttribute                  dimensionAttribute;
+        DimensionAttributeValue             dimensionAttributeValue;
+        int                                 attributeCount, attributeIndex;
+        str                                 attributeName, attributeValue;
+        int                                 containerElementIndex;
+
+        changecompany(_dataAreaId)
+        {
+            containerElementIndex = 1;
+
+            storage = new DimensionAttributeValueSetStorage();
+
+            // Get attribute count
+            attributeCount = conPeek(_dimensionValue, containerElementIndex);
+            containerElementIndex++;
+
+            // Get attributes
+            for (attributeIndex = 1; attributeIndex <= attributeCount; attributeIndex++)
+            {
+                // Get attribute name
+                attributeName = conPeek(_dimensionValue, containerElementIndex);
+                containerElementIndex++;
+
+                // Validate the Financial Dimenion that was passed in.
+                dimensionAttribute = DimensionAttribute::findByName(attributeName);
+
+                // Get attribute value
+                attributeValue = conPeek(_dimensionValue, containerElementIndex);
+                containerElementIndex++;
+
+                // Validate the Financial Dimenion Value that was passed in.
+                dimensionAttributeValue = DimensionAttributeValue::findByDimensionAttributeAndValue(dimensionAttribute, attributeValue);
+
+                // Add attribute
+                storage.addItem(dimensionAttributeValue);
+            }
+
+            dimensionId = storage.save();
+        }
+
+        return dimensionId;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getLedgerDimensionId</Name>
+				<Source><![CDATA[
+    // Obtener LedgerDimension a desde el Container [MainAccount, Dimension1, Dimension2 ... DimensionN]
+    public static DimensionDynamicAccount getLedgerDimensionId(container _dimensionValue)
+    {
+        DimensionStorage        dimensionStorage	= DimensionStorage::construct(0, LedgerDimensionType::Account);
+        DimensionAttributeValue dimAttributeValue;
+        DimensionStorageSegment dimensionStorageSegment;
+        DimensionHierarchyLevel	dimHierarchyLevel;
+        MainAccount				mainAccount;
+        recid					dimHierarchyId;
+        recid					mainAccountRecId;
+        DimensionValue			dimensionValue;
+        container				dimensions;
+
+        for(int i = 1; i <= conLen(_dimensionValue); i++)
+        {
+            try
+            {
+                dimensionValue = conPeek(_dimensionValue, i);
+
+                if(i == 1) // MainAccount
+                {
+                    dimAttributeValue	= DimensionAttributeValue::findByDimensionAttributeAndValueNoError(DimensionAttribute::findByName("MainAccount"), dimensionValue, false, true);
+
+                    mainAccountRecId	= DimensionAttributeValue::find(dimAttributeValue.RecId).EntityInstance;
+
+                    dimHierarchyId		= DimensionHierarchy::getAccountStructure(mainAccountRecId);
+
+                    dimensionStorage.addHierarchy(dimHierarchyId);
+
+                    while select DimensionAttribute, Level
+                        from dimHierarchyLevel order by Level
+                        where dimHierarchyLevel.DimensionHierarchy == dimHierarchyId
+                    {
+                        dimensions		+= DimensionAttribute::find(dimHierarchyLevel.DimensionAttribute).Name;
+                    }
+
+                    dimensionStorageSegment	= DimensionStorageSegment::constructFromValue(dimAttributeValue.CachedDisplayValue,
+                                                                                      dimAttributeValue);
+
+                    dimensionStorage.setSegment(i, dimensionStorageSegment);
+                }
+                else
+                {
+                    // Resto de dimensiones
+                    if(dimensionValue)
+                    {
+                        dimAttributeValue = DimensionAttributeValue::findByDimensionAttributeAndValueNoError(DimensionAttribute::findByName(conPeek(dimensions, i)),
+                                                                                                         dimensionValue,
+                                                                                                         false,
+                                                                                                         true);
+                        if (!dimAttributeValue)
+                        {
+                            // @JAT:DimensionNotFound = The value '%1' of the dimension '%2' does not exist.
+                            throw error(strFmt("@JAT:DimensionNotFound", dimensionValue, conPeek(dimensions, i)));
+                        }
+
+                        dimensionStorageSegment = DimensionStorageSegment::constructFromValue(dimAttributeValue.CachedDisplayValue, dimAttributeValue);
+                        dimensionStorage.setSegment(i, dimensionStorageSegment);
+                    }
+                    else
+                    {
+                        dimensionStorageSegment = DimensionStorageSegment::emptySegment();
+
+                        dimensionStorage.setSegment(i, dimensionStorageSegment);
+                    }
+                }
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        return dimensionStorage.save();
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>changeDimensionValue</Name>
+				<Source><![CDATA[
+	// Modificar los valores de la dimension que vienen por parámetros en el container [NombreDim1, Dimension1, NOmbreDim2, Dimension2, ..]
+    public static RecId changeDimensionValue(DimensionDefault _defaultDimension, container _dimensionValue) 
+    {
+        DimensionAttributeValueSetStorage	dimensionAttributeValueSetStorage;
+        DimensionAttribute					dimensionAttribute;
+        DimensionValue						oldDimensionValue;
+        DimensionValue						newDimensionValue;
+        DimensionDefault					newDimensionDefault;
+        DimensionRefFieldName				dimensionName;
+        int									i = 1;
+
+		while (i <= conLen(_dimensionValue))
+        {
+            dimensionName		= conPeek(_dimensionValue, i);
+            i++;
+            newDimensionValue	= conPeek(_dimensionValue, i);
+            i++;
+
+            // Get current value
+            oldDimensionValue = JATDimensionUtils::getDimensionValue(_defaultDimension, dimensionName);
+
+            // Build DimensionAttributeValueSetStorage
+            dimensionAttributeValueSetStorage = DimensionAttributeValueSetStorage::find(_defaultDimension);
+ 
+            // Remove old dimension value
+            dimensionAttribute = DimensionAttribute::findByName(dimensionName);
+            dimensionAttributeValueSetStorage.removeDimensionAttributeValue(DimensionAttributeValue::findByDimensionAttributeAndValue(dimensionAttribute, oldDimensionValue).RecId);
+ 
+            // Set new dimension value
+            if(newDimensionValue != "")
+            {
+                dimensionAttribute = DimensionAttribute::findByName(dimensionName);
+                dimensionAttributeValueSetStorage.addItem(DimensionAttributeValue::findByDimensionAttributeAndValue(dimensionAttribute, newDimensionValue));
+            }
+ 
+            _defaultDimension = dimensionAttributeValueSetStorage.save();
+        }
+
+        return _defaultDimension;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getDimensionValue</Name>
+				<Source><![CDATA[
+	// Obtener el valor de una dimension concreta dado un DimensionDefault
+    public static DimensionValue getDimensionValue(DimensionDefault _dimensionDefault, DimensionRefFieldName _dimensionName)
+    {
+        DefaultDimensionView defaultDimensionView;
+
+        select firstonly DisplayValue
+            from defaultDimensionView
+            where defaultDimensionView.Name					== _dimensionName
+                && defaultDimensionView.DefaultDimension	== _dimensionDefault;
+
+        return defaultDimensionView.DisplayValue;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>checkDimensionValue</Name>
+				<Source><![CDATA[
+	// Comprobar si el valor de una dimensión existe
+    public static boolean checkDimensionValue(DimensionRefFieldName _dimensionName, DimensionValue _dimensionValue)
+    {
+  
+        DimensionAttributeDirCategory   dimAttributeDirCategory;
+        DimensionAttribute				dimensionAttribute;
+        DimAttributeOMCostCenter		dimAttributeOMCostCenter;
+        DimAttributeOMBusinessUnit		dimAttributeOMBusinessUnit;
+        DimAttributeOMDepartment		dimAttributeOMDepartment;
+        DimensionFinancialTag			dimensionFinancialTag;
+        DimAttributeCustTable			dimAttributeCustTable;
+        DimAttributeVendTable			dimAttributeVendTable;
+        DimAttributeProjTable			dimAttributeProjTable;
+        DimAttributeHcmWorker			dimAttributeHcmWorker;
+        boolean							ret						= true;
+
+        switch (_dimensionName)
+        {
+            case JATDimensionUtils::CustomDimName:
+				dimensionAttribute		= DimensionAttribute::findByName(_dimensionName);
+
+				select firstOnly RecId 
+					from dimAttributeDirCategory
+						where dimAttributeDirCategory.DimensionAttribute == dimensionAttribute.RecId
+					join dimensionFinancialTag
+						where dimensionFinancialTag.FinancialTagCategory	== dimAttributeDirCategory.RecId
+							&& dimensionFinancialTag.Value					== _dimensionValue;
+ 
+				if (!dimAttributeDirCategory.RecId)
+				{
+                    ret = checkFailed(strFmt("@JAT:DimensionNotFound", _dimensionValue, _dimensionName)); 
+				}
+                break;
+
+            case JATDimensionUtils::BusinessUnitName:
+                select firstonly RecId
+                    from dimAttributeOMBusinessUnit
+                    where dimAttributeOMBusinessUnit.Value	== _dimensionValue;
+
+                if (!dimAttributeOMBusinessUnit.RecId)
+                {
+                    ret = checkFailed(strFmt("@JAT:DimensionNotFound", _dimensionValue, _dimensionName));
+                }
+                break;
+
+            case JATDimensionUtils::CostCenterName:
+                select firstonly RecId
+                    from dimAttributeOMCostCenter
+                    where dimAttributeOMCostCenter.Value	== _dimensionValue;
+
+                if (!dimAttributeOMCostCenter.RecId)
+                {
+                    ret = checkFailed(strFmt("@JAT:DimensionNotFound", _dimensionValue, _dimensionName));
+                }
+                break;
+
+            case JATDimensionUtils::DepartmentName:
+                select firstonly RecId
+                    from dimAttributeOMDepartment
+                    where dimAttributeOMDepartment.Value	== _dimensionValue;
+
+                if (!dimAttributeOMDepartment.RecId)
+                {
+                    ret = checkFailed(strFmt("@JAT:DimensionNotFound", _dimensionValue, _dimensionName));
+                }
+                break;
+
+            case JATDimensionUtils::ProjectName:
+                select firstonly RecId
+                    from dimAttributeProjTable
+                    where dimAttributeProjTable.Value	== _dimensionValue;
+
+                if (!dimAttributeProjTable.RecId)
+                {
+                    ret = checkFailed(strFmt("@JAT:DimensionNotFound", _dimensionValue, _dimensionName));
+                }
+                break;
+
+            case JATDimensionUtils::CustomerName:
+                select firstonly RecId
+                    from dimAttributeCustTable
+                    where dimAttributeCustTable.Value	== _dimensionValue;
+
+                if (!dimAttributeCustTable.RecId)
+                {
+                    ret = checkFailed(strFmt("@JAT:DimensionNotFound", _dimensionValue, _dimensionName));
+                }
+                break;
+
+            case JATDimensionUtils::VendorName:
+                select firstonly RecId
+                    from dimAttributeVendTable
+                    where dimAttributeVendTable.Value	== _dimensionValue;
+
+                if (!dimAttributeVendTable.RecId)
+                {
+                    ret = checkFailed(strFmt("@JAT:DimensionNotFound", _dimensionValue, _dimensionName));
+                }
+                break;
+
+            case JATDimensionUtils::WorkerName:
+                select firstonly RecId
+                    from dimAttributeHcmWorker
+                    where dimAttributeHcmWorker.Value	== _dimensionValue;
+
+                if (!dimAttributeHcmWorker.RecId)
+                {
+                    ret = checkFailed(strFmt("@JAT:DimensionNotFound", _dimensionValue, _dimensionName));
+                }
+                break;
+
+            default:
+                ret = checkFailed(strFmt("@JAT:DimensionNotFound", _dimensionValue, _dimensionName));
+                break;
+        }
+      
+		return ret;
+    }
+
+]]></Source>
+			</Method>
+		</Methods>
+	</SourceCode>
+</AxClass>
