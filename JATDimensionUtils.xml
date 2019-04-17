@@ -9,11 +9,11 @@ class JATDimensionUtils
     public static const DimensionRefFieldName CostCenterName	= "CentroCoste";
     public static const DimensionRefFieldName BusinessUnitName	= "UnidadNegocio";
     public static const DimensionRefFieldName DepartmentName	= "Departamento";
-    public static const DimensionRefFieldName ProjectName		= "Proyecto";
-    public static const DimensionRefFieldName CustomerName		= "Cliente";
-    public static const DimensionRefFieldName VendorName		= "Proveedor";
-    public static const DimensionRefFieldName WorkerName		= "Trabajador";
-    public static const DimensionRefFieldName CustomDimName		= "Personalizada";
+    public static const DimensionRefFieldName ProjectName	= "Proyecto";
+    public static const DimensionRefFieldName CustomerName	= "Cliente";
+    public static const DimensionRefFieldName VendorName	= "Proveedor";
+    public static const DimensionRefFieldName WorkerName	= "Trabajador";
+    public static const DimensionRefFieldName CustomDimName	= "Personalizada";
 
 
 }
@@ -82,11 +82,11 @@ class JATDimensionUtils
         DimensionAttributeValue dimAttributeValue;
         DimensionStorageSegment dimensionStorageSegment;
         DimensionHierarchyLevel	dimHierarchyLevel;
-        MainAccount				mainAccount;
-        recid					dimHierarchyId;
-        recid					mainAccountRecId;
-        DimensionValue			dimensionValue;
-        container				dimensions;
+        MainAccount		mainAccount;
+        recid			dimHierarchyId;
+        recid			mainAccountRecId;
+        DimensionValue		dimensionValue;
+        container		dimensions;
 
         for(int i = 1; i <= conLen(_dimensionValue); i++)
         {
@@ -100,7 +100,7 @@ class JATDimensionUtils
 
                     mainAccountRecId	= DimensionAttributeValue::find(dimAttributeValue.RecId).EntityInstance;
 
-                    dimHierarchyId		= DimensionHierarchy::getAccountStructure(mainAccountRecId);
+                    dimHierarchyId	= DimensionHierarchy::getAccountStructure(mainAccountRecId);
 
                     dimensionStorage.addHierarchy(dimHierarchyId);
 
@@ -160,16 +160,16 @@ class JATDimensionUtils
     public static RecId changeDimensionValue(DimensionDefault _defaultDimension, container _dimensionValue) 
     {
         DimensionAttributeValueSetStorage	dimensionAttributeValueSetStorage;
-        DimensionAttribute					dimensionAttribute;
-        DimensionValue						oldDimensionValue;
-        DimensionValue						newDimensionValue;
-        DimensionDefault					newDimensionDefault;
-        DimensionRefFieldName				dimensionName;
-        int									i = 1;
+        DimensionAttribute			dimensionAttribute;
+        DimensionValue				oldDimensionValue;
+        DimensionValue				newDimensionValue;
+        DimensionDefault			newDimensionDefault;
+        DimensionRefFieldName			dimensionName;
+        int					i = 1;
 
-		while (i <= conLen(_dimensionValue))
+	while (i <= conLen(_dimensionValue))
         {
-            dimensionName		= conPeek(_dimensionValue, i);
+            dimensionName	= conPeek(_dimensionValue, i);
             i++;
             newDimensionValue	= conPeek(_dimensionValue, i);
             i++;
@@ -209,7 +209,7 @@ class JATDimensionUtils
 
         select firstonly DisplayValue
             from defaultDimensionView
-            where defaultDimensionView.Name					== _dimensionName
+            where defaultDimensionView.Name			== _dimensionName
                 && defaultDimensionView.DefaultDimension	== _dimensionDefault;
 
         return defaultDimensionView.DisplayValue;
@@ -225,32 +225,32 @@ class JATDimensionUtils
     {
   
         DimensionAttributeDirCategory   dimAttributeDirCategory;
-        DimensionAttribute				dimensionAttribute;
-        DimAttributeOMCostCenter		dimAttributeOMCostCenter;
-        DimAttributeOMBusinessUnit		dimAttributeOMBusinessUnit;
-        DimAttributeOMDepartment		dimAttributeOMDepartment;
-        DimensionFinancialTag			dimensionFinancialTag;
-        DimAttributeCustTable			dimAttributeCustTable;
-        DimAttributeVendTable			dimAttributeVendTable;
-        DimAttributeProjTable			dimAttributeProjTable;
-        DimAttributeHcmWorker			dimAttributeHcmWorker;
-        boolean							ret						= true;
+        DimensionAttribute		dimensionAttribute;
+        DimAttributeOMCostCenter	dimAttributeOMCostCenter;
+        DimAttributeOMBusinessUnit	dimAttributeOMBusinessUnit;
+        DimAttributeOMDepartment	dimAttributeOMDepartment;
+        DimensionFinancialTag		dimensionFinancialTag;
+        DimAttributeCustTable		dimAttributeCustTable;
+        DimAttributeVendTable		dimAttributeVendTable;
+        DimAttributeProjTable		dimAttributeProjTable;
+        DimAttributeHcmWorker		dimAttributeHcmWorker;
+        boolean				ret = true;
 
         switch (_dimensionName)
         {
             case JATDimensionUtils::CustomDimName:
-				dimensionAttribute		= DimensionAttribute::findByName(_dimensionName);
+				dimensionAttribute	= DimensionAttribute::findByName(_dimensionName);
 
 				select firstOnly RecId 
 					from dimAttributeDirCategory
 						where dimAttributeDirCategory.DimensionAttribute == dimensionAttribute.RecId
 					join dimensionFinancialTag
-						where dimensionFinancialTag.FinancialTagCategory	== dimAttributeDirCategory.RecId
-							&& dimensionFinancialTag.Value					== _dimensionValue;
+						where dimensionFinancialTag.FinancialTagCategory == dimAttributeDirCategory.RecId
+							&& dimensionFinancialTag.Value		 == _dimensionValue;
  
 				if (!dimAttributeDirCategory.RecId)
 				{
-                    ret = checkFailed(strFmt("@JAT:DimensionNotFound", _dimensionValue, _dimensionName)); 
+                    			ret = checkFailed(strFmt("@JAT:DimensionNotFound", _dimensionValue, _dimensionName)); 
 				}
                 break;
 
