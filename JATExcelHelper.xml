@@ -1,0 +1,569 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AxClass xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+	<Name>JATExcelHelper</Name>
+	<SourceCode>
+		<Declaration><![CDATA[
+using OfficeOpenXml;
+using OfficeOpenXml.Style;
+using OfficeOpenXml.Table;
+using System.IO;
+/// <summary>
+/// Class created to manage in an easy way the creation and the importation of excel files.
+/// </summary>
+class JATExcelHelper
+{
+    private boolean			hasHeader;
+    private container		header;
+    private Map				listValues;
+    private List			content;
+    private MemoryStream	fileMemoryStream;
+    private Name			fileName;
+    private Name			worksheetName;
+    #File
+
+}
+]]></Declaration>
+		<Methods>
+			<Method>
+				<Name>new</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method new
+    /// </summary>
+    private void new()
+    {
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>construct</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method constructor
+    /// </summary>
+    /// <returns>JATExcelHelper objetct</returns>
+    public static JATExcelHelper construct()
+    {
+        return new JATExcelHelper();
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>parmHasHeader</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method parm for HasHeader property
+    /// </summary>
+    /// <param name = "_hasHeader">Indicates if the excel file has header on the first line</param>
+    /// <returns>True if the excel file has header on the first line, otherwise false</returns>
+    public boolean parmHasHeader(boolean _hasHeader = hasHeader)
+    {
+        hasHeader	= _hasHeader;
+
+        return hasHeader;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>parmHeader</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method parm for Header property
+    /// </summary>
+    /// <param name = "_header">Container with the values to write in the first row if hasHeader = true</param>
+    /// <returns>Container with the values of the first row if hasHeader = true</returns>
+    public container parmHeader(container _header = header)
+    {
+        header	= _header;
+
+        return header;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>parmListValues</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method parm for ListValues property
+    /// </summary>
+    /// <param name = "_listValues">Map with the valid values to select in a column. Key = Label of column, Value = container with valid values</param>
+    /// <returns>Map with the valid values to select in a column</returns>
+    public Map parmListValues(Map _listValues = listValues)
+    {
+        listValues	= _listValues;
+
+        return listValues;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>parmContent</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method parm for Content property
+    /// </summary>
+    /// <param name = "_content">List of containers with the content to write in the excel file</param>
+    /// <returns>List of containers with the content read from the excel file</returns>
+    public List parmContent(List _content = content)
+    {
+        content	= _content;
+
+        return content;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>parmFileName</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method parm for FileName property
+    /// </summary>
+    /// <param name = "_fileName">Name of the excel file</param>
+    /// <returns>Name of the excel file</returns>
+    public Name parmFileName(Name _fileName = fileName)
+    {
+        fileName	= _fileName;
+
+        return fileName;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>parmWorksheetName</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method parm for WorksheetName property
+    /// </summary>
+    /// <param name = "_worksheetName">Name of the excel worksheet to create</param>
+    /// <returns>Name of the excel worksheet to create</returns>
+    public Name parmWorksheetName(Name _worksheetName = worksheetName)
+    {
+        worksheetName	= _worksheetName;
+
+        return worksheetName;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>parmFileMemoryStream</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method parm for fileMemoryStream property
+    /// </summary>
+    /// <param name = "_fileMemoryStream">MemoryStream with the excel file</param>
+    /// <returns>MemoryStream with the excel file</returns>
+    public MemoryStream parmFileMemoryStream(MemoryStream _fileMemoryStream = fileMemoryStream)
+    {
+        fileMemoryStream	= _fileMemoryStream;
+
+        return fileMemoryStream;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>validateExport</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Validate the data to export
+    /// </summary>
+    /// <returns>True if everything is correct</returns>
+    private boolean validateExport()
+    {
+        boolean ret	= true;
+
+        if (ret && hasHeader && (header == conNull() || conLen(header) < 1))
+        {
+            ret = checkFailed("@JAT:HeaderRequired");
+        }
+  
+        return ret;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>exportFile</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method to create and download an excel file with the data passed by parm methods
+    /// </summary>
+    public void exportFile()
+    {
+        if (this.validateExport())
+        {
+            DocuFileSaveResult	saveResult	= DocuFileSave::promptForSaveLocation(fileName, #xlsx);
+
+            if (saveResult.parmAction() != DocuFileSaveAction::Cancel)
+            {
+                MemoryStream	memoryStream	= this.generateFile();
+
+                if (memoryStream != null)
+                {
+                    DocuFileSave::processSaveResult(memoryStream, saveResult);
+                }
+            }
+        }
+        else
+        {
+            throw Exception::Error;
+        }
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>generatefile</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method that generates the excel file
+    /// </summary>
+    /// <returns>MemoryStream with the data of the excel file</returns>
+    private MemoryStream generatefile()
+    {
+        try
+        {
+            MemoryStream memoryStream = new MemoryStream();
+
+            using (var package = new ExcelPackage(memoryStream))
+            {
+                ExcelWorksheet	excelWorksheet	= package.Workbook.Worksheets.Add(worksheetName);
+
+                if (hasHeader)
+                {
+                    this.writeExcelHeader(excelWorksheet);
+                }
+
+                if (content != null)
+                {
+                    this.writeExcelContent(excelWorksheet);
+                }
+
+                this.autoFitWorksheet(excelWorksheet);
+
+                package.Save();
+            }
+
+            memoryStream.Seek(0, SeekOrigin::Begin);
+            return memoryStream;
+        }
+        catch (Exception::CLRError)
+        {
+            // if the statement can't be generated, report an error and return null
+            error("@SYS135884");
+            return null;
+        }
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>writeExcelHeader</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method to write the Header in the excel worksheet
+    /// </summary>
+    /// <param name = "_cells">Range of cells of the worksheet to write in</param>
+    private void writeExcelHeader(ExcelWorksheet _excelWorksheet)
+    {
+        ExcelRange		excelCells		= _excelWorksheet.Cells;
+        ExcelRange		cell;
+        Name			headerName;
+        container		conValues;
+        int				i				= 1;
+
+        while (i <= conLen(header))
+        {
+            cell		= excelCells.get_Item(1, i);
+            headerName	= conPeek(header, i);
+            this.setCellValue(cell, headerName);
+            this.setCellBackgroundColor(cell, System.Drawing.Color::LightGray);
+   
+            if (listValues != null && listValues.exists(headerName))
+            {
+                conValues	= listValues.lookup(headerName);
+
+                if (conValues != conNull())
+                {
+                    this.setListValuesValidation(_excelWorksheet, i, conValues);
+                }
+            }
+            
+            i++;
+        }
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>setListValuesValidation</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method to set the valid values for an specific column
+    /// </summary>
+    /// <param name = "_excelWorksheet">Worksheet in wich add the validation</param>
+    /// <param name = "_colNum">Number of the column affected</param>
+    /// <param name = "_conValues">Valid values</param>
+    private void setListValuesValidation(ExcelWorksheet _excelWorksheet, int _colNum, container _conValues)
+    {
+        DataValidation.ExcelDataValidationList	validation;
+        str										colLetter	= ExcelCellAddress::GetColumnLetter(_colNum);
+        
+        validation					= _excelWorksheet.DataValidations.AddListValidation(strFmt('%1:%1', colLetter));
+
+        for (int i = 1; i <= conLen(_conValues); i++)
+        {
+            validation.get_Formula().get_Values().Add(conPeek(_conValues, i));
+        }
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>writeExcelContent</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method to write the Content in the excel worksheet
+    /// </summary>
+    /// <param name = "_cells">Range of cells of the worksheet to write in</param>
+    private void writeExcelContent(ExcelWorksheet _excelWorksheet)
+    {
+        ExcelRange		excelCells		= _excelWorksheet.Cells;
+        ExcelRange		cell;
+        ListEnumerator	listEnumerator	= content.getEnumerator();
+        int				rowNum			= hasHeader ? 2 : 1;
+        container		conLine			= conNull();
+
+        while (listEnumerator.moveNext())
+        {
+            conLine	= listEnumerator.current();
+
+            for (int i = 1; i <= conLen(conLine); i++)
+            {
+                cell	= excelCells.get_Item(rowNum, i);
+                this.setCellValue(cell, conPeek(conLine, i));
+            }
+
+            rowNum++;
+        }
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>setCellValue</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method to write a value in a specific cell of the excel worksheet
+    /// </summary>
+    /// <param name = "_cell">Cell to write in</param>
+    /// <param name = "_value">Valute to write in the cell</param>
+    /// <param name = "_numberFormat">Number format</param>
+    private void setCellValue(OfficeOpenXml.ExcelRange _cell, anytype _value, str _numberFormat = '')
+    {
+        var type = typeOf(_value);
+
+        if (!prmIsDefault(_numberFormat))
+        {
+            _cell.get_Style().get_Numberformat().set_Format(_numberFormat);
+        }
+
+        switch (type)
+        {
+            case Types::Real:
+            case Types::Int64:
+            case Types::Integer:
+                _cell.set_Value(_value);
+                break;
+
+            case Types::Date:
+                // we explictly use a DateTime cast here so that the EPPlus library can
+                // infer it and convert it to an OA date number for Excel
+                System.DateTime dateTime = _value;
+                _cell.get_Style().get_Numberformat().set_Format('dd/mm/yyyy');
+                _cell.set_Value(dateTime);
+                break;
+
+            default:
+                _cell.set_Value(any2Str(_value));
+                break;
+        }
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>setCellBackgroundColor</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method to set a background collor in a specific worksheet cell
+    /// </summary>
+    /// <param name = "_cell">Cell to print the background in</param>
+    /// <param name = "_color">Background color</param>
+    private void setCellBackgroundColor(OfficeOpenXml.ExcelRange _cell, System.Drawing.Color _color)
+    {
+        var fill = _cell.Style.Fill;
+        fill.set_PatternType(ExcelFillStyle::Solid);
+        fill.get_BackgroundColor().SetColor(_color);
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>autoFitWorksheet</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method to autofit the cells of a specific worksheet
+    /// </summary>
+    /// <param name = "_worksheet">Worksheet to autofit</param>
+    /// <param name = "_skipColumns">Container with specific columns to skip</param>
+    private void autoFitWorksheet(OfficeOpenXml.ExcelWorksheet _worksheet, container _skipColumns = conNull())
+    {
+        var lastColumn = _worksheet.Dimension.End.Column;
+
+        for (var i = 1; i <= lastColumn; i++)
+        {
+            if (conFind(_skipColumns, i) == 0)
+            {
+                _worksheet.Column(i).AutoFit();
+            }
+        }
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>importFile</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method to import an excel file throw the MemoryStream received by parms.
+    /// </summary>
+    /// <returns>Map with Key = NumOfLine of the excel, Value = Container with values of the excel</returns>
+    public Map importFile()
+    {
+        Map				mapContent	= new Map(Types::Integer, Types::Container);
+        container		conLine;
+        int				rowNum		= hasHeader ? 2 : 1;
+        ExcelWorksheet	worksheet;
+        ExcelRange		range;
+
+        if (this.validateImport())
+        {
+            using (ExcelPackage package = new ExcelPackage(fileMemoryStream))
+            {
+                package.Load(fileMemoryStream);
+
+                if (worksheetName == '')
+                {
+                    worksheet		= package.Workbook.Worksheets.get_Item(1);
+                    worksheetName	= worksheet.Name;
+                }
+                else
+                {
+                    worksheet	= package.Workbook.Worksheets.get_Item(worksheetName);
+                }
+
+                range		= worksheet.Cells;
+    
+                while (rowNum <= worksheet.Dimension.End.Row)
+                {
+                    conLine	= conNull();
+
+                    for (int i = 1; i <= worksheet.Dimension.End.Column; i++)
+                    {
+                        conLine	+= this.getCellValue(worksheet.Cells.get_Item(rowNum, i));
+                    }
+
+                    mapContent.insert(rowNum, conLine);
+                    rowNum++;
+                }
+            }
+        }
+
+        return mapContent;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getCellValue</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method to get the cell value in the correct format
+    /// </summary>
+    /// <param name = "_cell">Cell to get the value</param>
+    /// <returns>Value in the correct type</returns>
+    private anytype getCellValue(ExcelRange _cell)
+    {
+        System.Type	type;
+        utcdatetime	dtValue;
+        anytype		ret;
+
+        if (_cell.Value == null)
+        {
+            ret = '';
+        }
+        else
+        {
+            type	= _cell.Value.GetType();
+
+            switch (type)
+            {
+                case System.Type::GetType('System.String'):
+                    ret	= strLRTrim(_cell.Value);
+                    break;
+   
+                case System.Type::GetType('System.Int32'):
+                case System.Type::GetType('System.Int64'):
+                case System.Type::GetType('System.Double'):
+                    ret = _cell.Value;
+                    break;
+
+                case System.Type::GetType('System.DateTime'):
+                    dtValue = _cell.Value;
+                    ret = DateTimeUtil::date(dtValue);
+                    break;
+                  
+                default:
+                    ret	= strLRTrim(_cell.Value);
+                    break;
+            }
+        }
+
+        return ret;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>validateImport</Name>
+				<Source><![CDATA[
+    /// <summary>
+    /// Method to validate that the data is correct to import the file
+    /// </summary>
+    /// <returns>True if there is a memorystream, otherwise false.</returns>
+    private boolean validateImport()
+    {
+        boolean ret = true;
+
+        if (ret && fileMemoryStream == null)
+        {
+            ret = checkFailed("@JAT:ErrorFile");
+        }
+
+        return ret;
+    }
+
+]]></Source>
+			</Method>
+		</Methods>
+	</SourceCode>
+</AxClass>
