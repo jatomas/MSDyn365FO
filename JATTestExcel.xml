@@ -18,9 +18,9 @@ class AXZTestExcel
 
 	List content = new List(Types::Container);
 	container con = conNull();
-	con = ["Juan Antonio", "Tomás", mkDate(9,4,1987), 33];
+	con = ["Juan Antonio", "Tomás", mkDate(9,4,1987), 33, "Male"];
 	content.addEnd(con);
-	con = ["Miguel", "Pérez", mkDate(23,4,1969), 80];
+	con = ["Miguel", "Pérez", mkDate(23,4,1969), 80, "Male"];
 	content.addEnd(con);
 	excel.parmContent(content);
 
