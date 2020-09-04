@@ -1,0 +1,419 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AxClass xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+	<Name>JATSqlClient</Name>
+	<SourceCode>
+		<Declaration><![CDATA[
+using System.Data.SqlClient;
+
+public class JATSqlClient
+{
+    private DMFDataSource	dmfDataSource;
+	
+}
+]]></Declaration>
+		<Methods>
+			<Method>
+				<Name>createConnection</Name>
+				<Source><![CDATA[
+    private SqlConnection createConnection()
+    {
+        str				connectionStr	= this.getConnectionString();
+        SqlConnection	sqlConnection	= new SqlConnection(connectionStr);
+				
+        return sqlConnection;
+	}
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getConnectionString</Name>
+				<Source><![CDATA[
+    private str getConnectionString()
+    {
+        return Global::editEncryptedStringField(dmfDataSource, dmfDataSource.EntityStoreConnectionString, fieldNum(DMFDataSource, EntityStoreConnectionString), false);
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>new</Name>
+				<Source><![CDATA[
+	protected void new()
+    {
+
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>construct</Name>
+				<Source><![CDATA[
+    public static JATSqlClient construct(DMFSourceName _sourceName)
+    {
+        JATSqlClient	sqlClient	= new JATSqlClient();
+        DMFDataSource	dataSource	= DMFDataSource::find(_sourceName);
+        int				infologLine	= infologLine();
+
+		if (DMFDataSource::validateEntityConnectionString(dataSource))
+        {
+            infolog.clear(infologLine);
+            sqlClient.dmfDataSource	= dataSource;
+        }
+		else
+        {
+            throw Exception::Error;
+        }
+
+        return sqlClient;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>insertRecordFromCommon</Name>
+				<Source><![CDATA[
+	public int insertRecordFromCommon(Common _common)
+    {
+        str query	= this.createInsertQuery(_common);
+
+        return this.executeQuery(query);
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>deleteRecordFromCommon</Name>
+				<Source><![CDATA[
+	public int deleteRecordFromCommon(Common _common, boolean _deleteAll = false)
+    {
+        str query	= this.createDeleteQuery(_common, _deleteAll);
+
+        return this.executeQuery(query);
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>selectFromCommon</Name>
+				<Source><![CDATA[
+	public Map selectFromCommon(Common _common, Map _filter = null)
+    {
+        str	query	= this.createSelectQuery(_common, _filter);
+        
+        return this.executeReader(query, _common);
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>updateFromCommon</Name>
+				<Source><![CDATA[
+	public int updateFromCommon(Common _common, Map _values, Map _filter = null)
+    {
+        str query	= this.createUpdateQuery(_common, _values, _filter);
+
+        return this.executeQuery(query);
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>createUpdateQuery</Name>
+				<Source><![CDATA[
+    private str createUpdateQuery(Common _common, Map _values, Map _filter)
+    {
+        str				query		= strFmt('UPDATE %1', tableId2Name(_common.TableId));
+        str				setClause	= 'SET RECID = RECID';
+        str				whereClause	= 'WHERE 1 = 1';
+
+        MapEnumerator	enumValues	= new MapEnumerator(_values);
+
+		while (enumValues.moveNext())
+        {
+            anytype		value = enumValues.currentValue();
+            setClause	+= strFmt(', %1 = %2', enumValues.currentKey(), this.getSqlValue(value, typeOf(value)));
+        }
+
+        query = strFmt('%1 %2', query, setClause);
+
+		if (_filter != null)
+        {
+            MapEnumerator	enum	= new MapEnumerator(_filter);
+
+            while (enum.moveNext())
+            {
+                anytype		value = enum.currentValue();
+                whereClause	+= strFmt(' AND %1 = %2', enum.currentKey(), this.getSqlValue(value, typeOf(value)));
+            }
+
+            query	= strFmt('%1 %2', query, whereClause);
+        }
+
+        return query;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>createSelectQuery</Name>
+				<Source><![CDATA[
+    private str createSelectQuery(Common _common,  Map _filter)
+    {
+        SysDictTable	dictTable	= new SysDictTable(_common.TableId);
+        SysDictField	dictField;
+        FieldId			fieldId		= dictTable.fieldNext(0);
+        str				query		= 'SELECT %1 FROM %2';
+        str				whereClause	= 'WHERE 1 = 1';
+        container		conFields;
+
+        while (fieldId)
+        {
+            dictField	= dictTable.fieldObject(fieldId);
+
+            if (dictField.isSql())
+            {
+                conFields	+= dictField.name();
+            }
+   
+            fieldId = dictTable.fieldNext(fieldId);
+        }
+
+        query	= strFmt(query, con2Str(conFields, ', '), tableId2Name(_common.TableId));
+
+		if (_filter != null)
+        {
+            MapEnumerator	enum	= new MapEnumerator(_filter);
+
+            while (enum.moveNext())
+            {
+                anytype	value = enum.currentValue();
+                whereClause	+= strFmt(' AND %1 = %2', enum.currentKey(), this.getSqlValue(value, typeOf(value)));
+            }
+
+            query	= strFmt('%1 %2', query, whereClause);
+		}
+
+        return query;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>executeReader</Name>
+				<Source><![CDATA[
+    private Map executeReader(str _query, Common _common)
+    {
+        SysDictTable	dictTable	= new SysDictTable(_common.TableId);
+        Map				mapRecId	= new Map(Types::Int64, Types::Int64);
+        RecId			dbRecId;
+
+        using (SqlConnection sqlConnection = this.createConnection())
+        {
+            sqlConnection.Open();
+
+            using (SqlCommand sqlCommand = new SqlCommand(_query, sqlConnection))
+            {
+                using(SqlDataReader reader = sqlCommand.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        _common.clear();
+                        _common.initValue();
+
+                        for (int i = 0; i < reader.FieldCount; i++)
+                        {
+                            FieldName	fieldName	= reader.GetName(i);
+                            var			value		= reader.GetValue(i);
+
+                            FieldId		fieldId		= fieldName2Id(_common.TableId, fieldName);
+                            DictField	dictField	= dictTable.fieldObject(fieldId);
+
+                            if (value is System.DateTime)
+                            {
+                                if (dictField.baseType() == Types::Date)
+                                {
+                                    _common.(fieldId)	= DateTimeUtil::date(clrSystemDateTime2UtcDateTime(value));
+                                }
+								else
+                                {
+                                    _common.(fieldId)	= clrSystemDateTime2UtcDateTime(value);
+                                }
+                            }
+							else
+                            {
+								_common.(fieldId)	= value;
+                            }
+                        }
+
+                        dbRecId	= _common.RecId;
+                        _common.insert();
+                        mapRecId.insert(_common.RecId, dbRecId);
+                    }
+                }
+            }
+        }
+
+        return mapRecId;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>executeQuery</Name>
+				<Source><![CDATA[
+	private int executeQuery(str _query)
+    {
+        int numOfRecords;
+
+        using (SqlConnection sqlConnection = this.createConnection())
+        {
+            sqlConnection.Open();
+
+            using (SqlCommand sqlCommand = new SqlCommand(_query, sqlConnection))
+            {
+                numOfRecords	= sqlCommand.ExecuteNonQuery();
+            }
+        }
+
+        return numOfRecords;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>createDeleteQuery</Name>
+				<Source><![CDATA[
+    private str createDeleteQuery(Common _common, boolean _deleteAll)
+    {
+        str		query		= 'DELETE FROM %1';
+        str		whereClause	= 'WHERE RECID = %1';
+
+        query	= strFmt(query, tableId2Name(_common.TableId));
+
+        if (!_deleteAll)
+        {
+            whereClause	= strFmt(whereClause, _common.RecId);
+            query		= strFmt('%1 %2', query, whereClause);
+        }
+
+        return query;
+
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>createInsertQuery</Name>
+				<Source><![CDATA[
+    private str createInsertQuery(Common _common)
+    {
+        SysDictTable	dictTable	= new SysDictTable(_common.TableId);
+        SysDictField	dictField;
+        FieldId			fieldId		= dictTable.fieldNext(0);
+        str				query		= 'INSERT INTO %1 (%2) VALUES (%3)';
+        container		conFields, conValues;
+
+		while (fieldId)
+        {
+            dictField	= dictTable.fieldObject(fieldId);
+
+            if (dictField.isSql())
+            {
+                conFields	+= dictField.name();
+                conValues	+= this.getSqlValue(_common.(fieldId), dictField.baseType());
+            }
+   
+            fieldId = dictTable.fieldNext(fieldId);
+        }
+
+        query	= strFmt(query, tableId2Name(_common.TableId), con2Str(conFields, ', '), con2Str(conValues, ', '));
+
+        return query;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getDate</Name>
+				<Source><![CDATA[
+    private str getDate(date _date)
+    {
+        str	dateConverted;
+
+        if (_date == dateNull())
+        {
+            dateConverted	= '\'1900-01-01 00:00:00\'';
+        }
+        else
+        {
+            dateConverted	= strFmt('\'%1 00:00:00\'', date2Str(_date, 321, 2, DateSeparator::Hyphen, 2, DateSeparator::Hyphen, 4));
+        }
+
+        return dateConverted;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getDateTime</Name>
+				<Source><![CDATA[
+    private str getDateTime(utcdatetime _datetime)
+    {
+        str	datetimeConverted;
+
+        if (_datetime == utcDateTimeNull())
+        {
+            datetimeConverted	= '\'1900-01-01 00:00:00\'';
+        }
+        else
+        {
+            datetimeConverted	= strFmt('\'%1\'', DateTimeUtil::toFormattedStr(_datetime, 321, 2, DateSeparator::Hyphen, 2, DateSeparator::Hyphen, 4, TimeSeparator::Colon, TimeSeparator::Colon));
+        }
+
+        return datetimeConverted;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getSqlValue</Name>
+				<Source><![CDATA[
+	private anytype getSqlValue(anytype _value, Types _type)
+    {
+        anytype	sqlValue;
+
+        switch (_type)
+        {
+            case Types::Int64:
+            case Types::Integer:
+                sqlValue	= _value;
+                break;
+            case Types::String:
+            case Types::RString:
+            case Types::VarString:
+                sqlValue	= strFmt('\'%1\'', _value);
+                break;
+            case Types::Enum:
+                sqlValue	= enum2int(_value);
+                break;
+            case Types::Date:
+                sqlValue	= this.getDate(_value);
+                break;
+            case Types::UtcDateTime:
+                sqlValue	= this.getDateTime(_value);
+                break;
+            case Types::Real:
+                sqlValue	= num2Str(_value, 1, 2, DecimalSeparator::Dot, 0);
+                break;
+            default:
+                throw error("@Axazure:DataTypeNotSupported");
+        }
+
+        return sqlValue;
+    }
+
+]]></Source>
+			</Method>
+		</Methods>
+	</SourceCode>
+</AxClass>

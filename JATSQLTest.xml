@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AxClass xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+	<Name>JATSQLTest</Name>
+	<SourceCode>
+		<Declaration><![CDATA[
+class JATSQLTest
+{
+}
+]]></Declaration>
+		<Methods>
+			<Method>
+				<Name>main</Name>
+				<Source><![CDATA[
+    public static void main(Args _args)
+    {
+        DMFDataSource	dataSource	= DMFDataSource::find("Azure SQL");
+        JATSqlClient	sqlClient	= JATSqlClient::construct(dataSource);
+
+        JATTempTable	tempTable;
+
+        //...
+
+        // populate tempTable
+        tempTable.insert();
+
+        sqlClient.insertRecordFromCommon(tempTable);
+    }
+
+]]></Source>
+			</Method>
+		</Methods>
+	</SourceCode>
+</AxClass>
